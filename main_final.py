@@ -20,7 +20,7 @@ n_epochs = 5
 num_workers = 2
 COSINE = True
 init_lr = 1e-4
-IMG_SOURCE = "img"
+# IMG_SOURCE = "img"
 BACK_INTERVAL = 20
 BACK_INTERVAL_VAL = 1
 ERR_TOL = 1
@@ -29,10 +29,10 @@ mixup = True
 
 selected_videos = [
     "1606b0e6_0.mp4",
-    "35bd9041_0.mp4",
-    "3c993bd2_0.mp4",
-    '35bd9041_1.mp4',
-    '407c5a9e_1.mp4'
+    "35bd9041_0.mp4"
+    # "3c993bd2_0.mp4"
+    # '35bd9041_1.mp4',
+    # '407c5a9e_1.mp4'
 
 ]
 
@@ -52,6 +52,9 @@ err_tol = {
 event_names = ['challenge', 'throwin', 'play']
 
 df = pd.read_csv("/home/ubuntu/bundesliga/src/Data/train.csv")
+
+# df = pd.read_csv("/home/ubuntu/DL/src/Data/train.csv")
+
 
 print(len(df))
 
@@ -86,6 +89,8 @@ print(df.head())
 
 
 cap = cv2.VideoCapture("/home/ubuntu/bundesliga/src/Data/train/3c993bd2_0.mp4")
+# cap = cv2.VideoCapture("/home/ubuntu/DL/src/Data/train/3c993bd2_0.mp4")
+
 
 fps = cap.get(cv2.CAP_PROP_FPS)
 
@@ -116,6 +121,25 @@ def extract_images(video_path, out_dir):
         cv2.imwrite(outfile, img)
         frame_count += 1
 
+#
+#
+# def extract_images(video_path, out_dir, frame_interval=100):
+#     video_name = os.path.basename(video_path).split('.')[0]
+#     cam = cv2.VideoCapture(video_path)
+#     print(video_path)
+#     frame_count = 1
+#     while True:
+#         successed, img = cam.read()
+#         if not successed:
+#             break
+#         if frame_count % frame_interval == 0:  # Extract frames at specified interval
+#             print('output_img_file')
+#             outfile = f'{out_dir}/{video_name}-{frame_count:06}.jpg'
+#             print(outfile)
+#             img = cv2.resize(img, dsize=IMG_SIZE, interpolation=cv2.INTER_AREA)
+#             cv2.imwrite(outfile, img)
+#         frame_count += 1
+
 
 
 
@@ -123,8 +147,12 @@ def extract_images(video_path, out_dir):
 # Path to the directory containing the MP4 files
 directory = "/home/ubuntu/bundesliga/src/Data/train"
 
+# directory = "/home/ubuntu/DL/src/Data/train"
+
+
 
 OUT_DIR = "/home/ubuntu/bundesliga/src/work"
+# OUT_DIR = "home/ubuntu/DL/src/work"
 
 
 train_out_dir = os.path.join(OUT_DIR, "img_train")
@@ -166,10 +194,6 @@ for video_file in valid_videos:
 
 
 
-#
-# for video_file in selected_videos:
-#     video_path = os.path.join(directory, video_file)
-#     extract_images(video_path, OUT_DIR)
 
 
 
