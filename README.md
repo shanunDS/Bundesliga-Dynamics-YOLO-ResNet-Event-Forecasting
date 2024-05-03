@@ -1,4 +1,4 @@
-## Video Segmentation using YOLO and RESNET
+## Object detection and prediction using YOLO and RESNET
 
 The goal of this Project is to detect football passes - including throw-ins and crosses and challenges in original Bundesliga matches. We have trained a YOLOV5 which is detecting different objects present in the video
 and we also train a Resnet model to classify entities into different classes.
