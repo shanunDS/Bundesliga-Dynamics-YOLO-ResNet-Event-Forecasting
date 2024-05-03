@@ -1,49 +1,40 @@
 
-
 import time
 import os
 import numpy as np
 import pandas as pd
 import cv2
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-from torch.optim import lr_scheduler
-from torch.utils.data import DataLoader, Dataset
-from torch.utils.data.sampler import SubsetRandomSampler, RandomSampler, SequentialSampler
-from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, CosineAnnealingLR, ReduceLROnPlateau
-
-import albumentations as A
-import albumentations
+import random
 import matplotlib.pyplot as plt
 from tqdm.notebook import tqdm
-
-import torchvision
 import glob
-import timm
 from sklearn.metrics import confusion_matrix
 import copy
 
 
-IMSIZE = [540, 768]
-IMG_SIZE = (540, 768)
-modelname = "tf_efficientnet_b0"
+IMG_SIZE = (640, 768)
+# modelname = "tf_efficientnet_b0"
 use_amp = True
 batch_size = 40
-n_epochs = 30
+n_epochs = 5
 num_workers = 2
 COSINE = True
-init_lr = 2e-4
-kernel_type = "{}-{}".format(modelname, IMSIZE[0])
-
+init_lr = 1e-4
 IMG_SOURCE = "img"
 BACK_INTERVAL = 20
 BACK_INTERVAL_VAL = 1
 ERR_TOL = 1
 mixup = True
-DEBUG = True
+
+
+selected_videos = [
+    "1606b0e6_0.mp4",
+    "35bd9041_0.mp4",
+    "3c993bd2_0.mp4",
+    '35bd9041_1.mp4',
+    '407c5a9e_1.mp4'
+
+]
 
 
 
@@ -54,28 +45,19 @@ err_tol = {
     'throwin': [0.15, 0.20, 0.25, 0.30, 0.35]
 }
 
-video_id_split = {
-    'val': [
-        '3c993bd2_0',
-        '3c993bd2_1',
-        '35bd9041_0',
-        '35bd9041_1',
-    ],
-    'train': [
-        '1606b0e6_0',
-        '1606b0e6_1',
-        '407c5a9e_1',
-        '4ffd5986_0',
-        '9a97dae4_1',
-        'cfbe2e94_0',
-        'cfbe2e94_1',
-        'ecf251d4_0',
-    ]
-}
+
+
+
+
 event_names = ['challenge', 'throwin', 'play']
 
 df = pd.read_csv("/home/ubuntu/bundesliga/src/Data/train.csv")
+
 print(len(df))
+
+print(df.head(15))
+
+
 additional_events = []
 for arr in df.sort_values(['video_id', 'time', 'event', 'event_attributes']).values:
     if arr[2] in err_tol:
@@ -94,10 +76,19 @@ df = df[~df['event'].isin(event_names)]
 df = df.sort_values(['video_id', 'time'])
 
 
+print('main dataset')
+
+print(df.head())
 
 
-cap = cv2.VideoCapture("/home/ubuntu/bundesliga/src/Data/train/ecf251d4_0.mp4")
+
+
+
+
+cap = cv2.VideoCapture("/home/ubuntu/bundesliga/src/Data/train/3c993bd2_0.mp4")
+
 fps = cap.get(cv2.CAP_PROP_FPS)
+
 print("fps:", fps)
 df["frame"] = df["time"] * fps
 
@@ -125,28 +116,60 @@ def extract_images(video_path, out_dir):
         cv2.imwrite(outfile, img)
         frame_count += 1
 
-IN_VIDEOS = glob.glob("/home/ubuntu/bundesliga/src/Data/train/*")
 
 
-selected_videos = [
-    "1606b0e6_0.mp4",
-    "35bd9041_0.mp4",
-    "3c993bd2_0.mp4",
-    "407c5a9e_1.mp4",
-    "9a97dae4_1.mp4"
-]
+
 
 # Path to the directory containing the MP4 files
 directory = "/home/ubuntu/bundesliga/src/Data/train"
 
 
-OUT_DIR = "/home/ubuntu/bundesliga/src/work/img"
+OUT_DIR = "/home/ubuntu/bundesliga/src/work"
 
 
+train_out_dir = os.path.join(OUT_DIR, "img_train")
+val_out_dir = os.path.join(OUT_DIR, "img_val")
 
-for video_file in selected_videos:
+
+os.makedirs(train_out_dir, exist_ok=True)
+os.makedirs(val_out_dir, exist_ok=True)
+
+random.shuffle(selected_videos)
+
+
+split_ratio = 0.8
+
+# Split the videos into training and validation sets
+split_index = int(len(selected_videos) * split_ratio)
+
+print('train videos')
+train_videos = selected_videos[:split_index]
+
+print(train_videos)
+
+print('validation videos')
+valid_videos = selected_videos[split_index:]
+print(valid_videos)
+
+# Extract images from training videos
+for video_file in train_videos:
     video_path = os.path.join(directory, video_file)
-    extract_images(video_path, OUT_DIR)
+    extract_images(video_path, train_out_dir)
+
+# Extract images from validation videos
+for video_file in valid_videos:
+    video_path = os.path.join(directory, video_file)
+    extract_images(video_path, val_out_dir)
+
+
+
+
+
+
+#
+# for video_file in selected_videos:
+#     video_path = os.path.join(directory, video_file)
+#     extract_images(video_path, OUT_DIR)
 
 
 
