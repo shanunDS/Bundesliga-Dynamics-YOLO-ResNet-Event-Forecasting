@@ -10,31 +10,37 @@ from torch.utils.data.sampler import SubsetRandomSampler, RandomSampler, Sequent
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, CosineAnnealingLR, ReduceLROnPlateau
 import albumentations as A
 import albumentations
-import matplotlib.pyplot as plt
 from tqdm.notebook import tqdm
 from pandas.testing import assert_index_equal
 from typing import Dict, Tuple
+from torchvision.models import resnet
+from tqdm import tqdm
+import os
+from PIL import Image
 
-import torchvision
 import glob
-import timm
 from sklearn.metrics import confusion_matrix
 import copy
 import cv2
 import time
 import torch.optim.lr_scheduler as lr_scheduler
+import warnings
+
+warnings.filterwarnings('ignore')
+
+event_names = ['challenge', 'throwin', 'play']
+
+
 import torchvision.models as models
+event_names_with_background = ['background','challenge','play','throwin']
 
 
 
-import sys
-sys.path.append('/C:/Users/Asus/OneDrive/Desktop\Bundesliga\src\dflfiles\ timm.tgz\timm\pytorch-image-models')
 
 
 
 IMSIZE = [540, 768]
 IMG_SIZE = (540, 768)
-modelname = "tf_efficientnet_b0"
 
 use_amp = True
 batch_size = 40
@@ -42,8 +48,6 @@ n_epochs = 1
 num_workers = 2
 COSINE = True
 init_lr = 2e-4
-kernel_type = "{}-{}".format(modelname, IMSIZE[0])
-
 IMG_SOURCE = "img"
 BACK_INTERVAL = 20
 BACK_INTERVAL_VAL = 1
@@ -54,16 +58,49 @@ mixup = True
 print('len df train')
 df_train = pd.read_csv("/home/ubuntu/bundesliga/src/Data/training_folds_iter.csv")
 
-print(len(df_train))
-
+print(df_train.head())
 print('len df valid')
 df_valid = pd.read_csv("/home/ubuntu/bundesliga/src/Data/val_folds_iter.csv")
-print(len(df_valid))
+print(df_valid.head())
+
+
+# class net(nn.Module):
+#     def __init__(self, modelname, out_dim=10, freeze_bn=True):
+#         super(net, self).__init__()
+#         self.model = timm.create_model(modelname, pretrained=True)
+#         self.model.reset_classifier(out_dim)
+#
+#     def forward(self, x):
+#         x = self.model(x)
+#         return x
+
+
+# class net(nn.Module):
+#     def __init__(self, out_dim=10):
+#         super(net, self).__init__()
+#         # Load pre-trained EfficientNet-b0 model
+#         self.model = efficientnet.efficientnet_b0(pretrained=True)
+#
+#         # Reset classifier
+#         in_features = self.model.classifier.in_features
+#         self.model.classifier = nn.Linear(in_features, out_dim)
+#
+#     def forward(self, x):
+#         x = self.model(x)
+#         return x
+
+
 class net(nn.Module):
-    def __init__(self, modelname, out_dim=10, freeze_bn=True):
+    def __init__(self, out_dim=10):
         super(net, self).__init__()
-        self.model = timm.create_model(modelname, pretrained=True)
-        self.model.reset_classifier(out_dim)
+        # Load pre-trained ResNet-18 model
+        self.model = resnet.resnet18(pretrained=True)
+
+        # Get input features of the last layer
+        in_features = self.model.fc.in_features
+
+        # Reset classifier
+        self.model.fc = nn.Linear(in_features, out_dim)
 
     def forward(self, x):
         x = self.model(x)
@@ -118,33 +155,109 @@ def get_label(label):
     return label
 
 
-class dflDataset(Dataset):
-    def __init__(self,
-                 df,
-                 test=False,
-                 transform=None,
-                 ):
+# class dflDataset(Dataset):
+#     def __init__(self,
+#                  df,
+#                  test=False,
+#                  transform=None,
+#                  ):
+#
+#         self.df = df.reset_index(drop=True)
+#         self.test = test
+#         self.transform = transform
+#
+#     def __len__(self):
+#         return self.df.shape[0]
+#
+#     def __getitem__(self, index):
+#         row = self.df.iloc[index]
+#         images = []
+#         for i in [-1, 0, 1]:
+#             tiff_file = "work/{}/".format(IMG_SOURCE) + row.video + "-" + str(row.frame + i).zfill(6) + ".jpg"
+#             im = cv2.imread(tiff_file, cv2.IMREAD_GRAYSCALE)
+#             images.append(im)
+#         images = np.array(images).transpose(1, 2, 0)
+#
+#         # aug
+#         if self.transform is not None:
+#             images = self.transform(image=images)['image']
+#         file = copy.copy(tiff_file)
+#         images = images.astype(np.float32)
+#         images /= 255
+#         images = images.transpose(2, 0, 1)
+#
+#         # Load labels
+#         label = get_label(row.cls)
+#
+#         # Mixup part
+#         rd = np.random.rand()
+#         label2 = label
+#         gamma = np.array(np.ones(1)).astype(np.float32)[0]
+#         if mixup and rd < 0.9 and not self.test:
+#             mix_idx = np.random.randint(0, len(self.df) - 1)
+#             row2 = self.df.iloc[mix_idx]
+#             images2 = []
+#             for i in [-1, 0, 1]:
+#                 tiff_file = "work/{}/".format(IMG_SOURCE) + row2.video + "-" + str(row2.frame + i).zfill(6) + ".jpg"
+#                 im = cv2.imread(tiff_file, cv2.IMREAD_GRAYSCALE)
+#                 images2.append(im)
+#             images2 = np.array(images2).transpose(1, 2, 0)
+#
+#             if self.transform is not None:
+#                 images2 = self.transform(image=images2)['image']
+#
+#             images2 = images2.astype(np.float32)
+#             images2 /= 255
+#             images2 = images2.transpose(2, 0, 1)
+#             # blend image
+#             gamma = np.array(np.random.beta(1, 1)).astype(np.float32)
+#             images = ((images * gamma + images2 * (1 - gamma)))
+#             # blend labels
+#             label2 = get_label(row2.cls)
+#
+#         return torch.tensor(images), torch.tensor(label), torch.tensor(label2), torch.tensor(gamma), file
 
+
+class dflDataset(Dataset):
+    def __init__(self, df, test=False, transform=None, img_source="img_train", mixup=False):
         self.df = df.reset_index(drop=True)
         self.test = test
         self.transform = transform
+        self.img_source = img_source
+        self.mixup = mixup
 
     def __len__(self):
         return self.df.shape[0]
 
     def __getitem__(self, index):
+        print('row val')
         row = self.df.iloc[index]
+        print(self.df.head())
+        print(row)
+        print('images')
         images = []
+        # print(images)
         for i in [-1, 0, 1]:
-            tiff_file = "work/{}/".format(IMG_SOURCE) + row.video + "-" + str(row.frame + i).zfill(6) + ".jpg"
-            im = cv2.imread(tiff_file, cv2.IMREAD_GRAYSCALE)
-            images.append(im)
+            print('img')
+            img_path = os.path.join("/home/ubuntu/bundesliga/src/work", self.img_source, f"{row.video}-{str(row.frame + i).zfill(6)}.jpg")
+            print(img_path)
+
+            with Image.open(img_path) as img:
+                img = img.convert("L")  # Convert to grayscale
+                img = np.array(img)
+            images.append(img)
+
+            # im = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+            # images.append(im)
         images = np.array(images).transpose(1, 2, 0)
 
-        # aug
+        print(images)
+
+        # Apply transformations
         if self.transform is not None:
             images = self.transform(image=images)['image']
-        file = copy.copy(tiff_file)
+
+        file = copy.copy(img_path)
         images = images.astype(np.float32)
         images /= 255
         images = images.transpose(2, 0, 1)
@@ -156,13 +269,13 @@ class dflDataset(Dataset):
         rd = np.random.rand()
         label2 = label
         gamma = np.array(np.ones(1)).astype(np.float32)[0]
-        if mixup and rd < 0.9 and not self.test:
+        if self.mixup and rd < 0.9 and not self.test:
             mix_idx = np.random.randint(0, len(self.df) - 1)
             row2 = self.df.iloc[mix_idx]
             images2 = []
             for i in [-1, 0, 1]:
-                tiff_file = "work/{}/".format(IMG_SOURCE) + row2.video + "-" + str(row2.frame + i).zfill(6) + ".jpg"
-                im = cv2.imread(tiff_file, cv2.IMREAD_GRAYSCALE)
+                img_path2 = os.path.join("/home/ubuntu/bundesliga/src/work", self.img_source, f"{row2.video}-{str(row2.frame + i).zfill(6)}.jpg")
+                im = cv2.imread(img_path2, cv2.IMREAD_GRAYSCALE)
                 images2.append(im)
             images2 = np.array(images2).transpose(1, 2, 0)
 
@@ -172,13 +285,14 @@ class dflDataset(Dataset):
             images2 = images2.astype(np.float32)
             images2 /= 255
             images2 = images2.transpose(2, 0, 1)
-            # blend image
+            # Blend image
             gamma = np.array(np.random.beta(1, 1)).astype(np.float32)
             images = ((images * gamma + images2 * (1 - gamma)))
-            # blend labels
+            # Blend labels
             label2 = get_label(row2.cls)
 
         return torch.tensor(images), torch.tensor(label), torch.tensor(label2), torch.tensor(gamma), file
+
 
 
 transforms_train = albumentations.Compose([
@@ -197,12 +311,15 @@ transforms_train = albumentations.Compose([
 transforms_val = albumentations.Compose([albumentations.Resize(IMSIZE[0], IMSIZE[1], p=1.0),])
 
 
+train_dataset = dflDataset(df_train, transform=transforms_train, img_source="/home/ubuntu/bundesliga/src/work/img_train", mixup=True)
+
+# For validation dataset
+val_dataset = dflDataset(df_valid, transform=transforms_val, img_source="/home/ubuntu/bundesliga/src/work/img_val", mixup=False)
 
 
-
-dataset = dflDataset(df_train, transform=transforms_train)
+# dataset = dflDataset(df_train, transform=transforms_train)
     # Setup dataloader
-loader = torch.utils.data.DataLoader(dataset, batch_size=8, sampler=RandomSampler(dataset))
+# loader = torch.utils.data.DataLoader(dataset, batch_size=8, sampler=RandomSampler(dataset))
 # for (d,label,_,_,_) in loader:
 #     for b,l in zip(d, label):
 #         plt.figure(figsize=(10,10))
@@ -487,6 +604,43 @@ def event_detection_ap(
     return mean_ap, ap_table
 
 
+def make_sub(prob, filenames):
+    frame_rate = 25
+    window_size = 2
+    ignore_width = 16
+    df = pd.DataFrame(prob, columns=event_names_with_background)
+    df['video_name'] = filenames
+    df['video_id'] = df['video_name'].str.split('-').str[0].str.split("/").str[-1]
+    df['frame_id'] = df['video_name'].str.split('-').str[1].str.split('.').str[0].astype(int)
+
+    train_df = []
+    for video_id, gdf in df.groupby('video_id'):
+        for i, event in enumerate(event_names):
+            # print(video_id, event)
+            prob_arr = gdf[event].rolling(window=window_size, center=True).mean().fillna(-100).values
+            sort_arr = np.argsort(-prob_arr)
+            rank_arr = np.empty_like(sort_arr)
+            rank_arr[sort_arr] = np.arange(len(sort_arr))
+            idx_list = []
+            for i in range(len(prob_arr)):
+                this_idx = sort_arr[i]
+                if this_idx >= 0:
+                    idx_list.append(this_idx)
+                    for parity in (-1, 1):
+                        for j in range(1, ignore_width + 1):
+                            ex_idx = this_idx + j * parity
+                            if ex_idx >= 0 and ex_idx < len(prob_arr):
+                                sort_arr[rank_arr[ex_idx]] = -1
+            this_df = gdf.reset_index(drop=True).iloc[idx_list].reset_index(drop=True)
+            this_df["score"] = prob_arr[idx_list]
+            this_df['event'] = event
+            train_df.append(this_df)
+    train_df = pd.concat(train_df)
+    train_df['time'] = train_df['frame_id'] / frame_rate
+
+    return train_df.reset_index(drop=True)
+
+
 
 
 
@@ -534,9 +688,13 @@ def val_epoch(loader):
     for i, val in enumerate(cm):
         print("for class {}: accuracy: {}".format(i, val[i] / sum(val) * 100))
 
-    # val_df = make_sub(PREDS[:, :4], FILES)
-    score, ap_table = event_detection_ap(solution[solution['video_id'].isin(df_valid['video_id'].unique())],
-                                         df_valid[['video_id', 'time', 'event', 'score']], tolerances)
+    print('val df')
+
+    val_df = make_sub(PREDS[:, :4], FILES)
+
+    print(val_df)
+    score, ap_table = event_detection_ap(solution[solution['video_id'].isin(val_df['video_id'].unique())],
+                                         val_df[['video_id', 'time', 'event', 'score']], tolerances)
     print(score)
     print(ap_table)
 
@@ -553,59 +711,110 @@ criterion = nn.CrossEntropyLoss()
 def mixup_criterion(criterion, pred, y_a, y_b, lam):
     return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
 
+#
+# dataset_train = dflDataset(df_train, transform=transforms_train)
+# dataset_valid = dflDataset(df_valid, transform=transforms_val, test=True)
+
+# Define batch size and number of workers
+batch_size = 8
+num_workers = 2  # Adjust this based on your system specifications
+
+# Setup dataloaders
+train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=RandomSampler(train_dataset), num_workers=num_workers)
+valid_loader = DataLoader(val_dataset, batch_size=batch_size, sampler=SequentialSampler(val_dataset), num_workers=num_workers)
 
 
-dataset_train = dflDataset(df_train, transform=transforms_train)
-dataset_valid = dflDataset(df_valid, transform=transforms_val, test=True)
-
-# Setup dataloader
-train_loader = torch.utils.data.DataLoader(dataset_train, batch_size=batch_size, sampler=RandomSampler(dataset_train), num_workers=num_workers)
-valid_loader = torch.utils.data.DataLoader(dataset_valid, batch_size=batch_size, sampler=SequentialSampler(dataset_valid), num_workers=num_workers)
-
-# Initialize model
-model = net(modelname)
+model = net(out_dim=10)  # Assuming you have 10 output classes
 model = model.to(device)
 print('length of train')
-print(len(dataset_train))
+print(len(train_dataset))
 
 print('length of valid')
-print(len(dataset_valid))
-
+print(len(val_dataset))
 
 # We use Cosine annealing LR scheduling
 optimizer = optim.Adam(model.parameters(), lr=init_lr)
-# scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, n_epochs)
-
 scheduler = lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
 
-# C:\Users\Asus\OneDrive\Desktop\Bundesliga\input\dflfiles\timm.tgz\timm.tgz\timm\pytorch-image-models\timm
-# best_file = f'./models/{kernel_type}_best_fold{fold}.pth'
-
-# best_file = f'./home/ubuntu/bundesliga/input/dflfiles/timm.tgz/timm.tgz/timm/pytorch-image-models/timm/{kernel_type}.pth'
-# print(best_file)
-
-# best = 0
-for epoch in range(1, n_epochs+1):
+# Training loop
+for epoch in range(1, n_epochs + 1):
     start = time.time()
     torch.cuda.empty_cache()
     print(time.ctime(), 'Epoch:', epoch)
 
-    # scheduler.step(epoch-1)
-
     optimizer.step()
-
     scheduler.step()
+
     print('training loss')
     train_loss = train_epoch(train_loader, optimizer)
     print(train_loss)
-    val_loss, acc, score, PREDS, FILES, TARGETS  = val_epoch(valid_loader)
 
     print('validation loss')
+    val_loss, acc, score, PREDS, FILES, TARGETS = val_epoch(valid_loader)
+    print('val loss')
     print(val_loss)
+    print('accuracy')
+    print(acc)
+    print('score')
+    print(score)
+    print('predictions')
+    print(PREDS)
 
+    # Save model
+    torch.save(model.state_dict(), os.path.join('/home/ubuntu/bundesliga/src/saved_models', 'resnet_epoch{}.pth'.format(epoch)))
 
-    # torch.save(model.state_dict(), os.path.join(f'/home/ubuntu/bundesliga/input/dflfiles/timm.tgz/timm.tgz/timm/pytorch-image-models/timm/{kernel_type}_epoch{epoch}.pth'))
-    torch.save(model.state_dict(), os.path.join('/home/ubuntu/bundesliga/src/saved_models', f'{kernel_type}_epoch{epoch}.pth'))
+#
+# dataset_train = dflDataset(df_train, transform=transforms_train)
+# dataset_valid = dflDataset(df_valid, transform=transforms_val, test=True)
+#
+# # Setup dataloader
+# train_loader = torch.utils.data.DataLoader(dataset_train, batch_size=batch_size, sampler=RandomSampler(dataset_train), num_workers=num_workers)
+# valid_loader = torch.utils.data.DataLoader(dataset_valid, batch_size=batch_size, sampler=SequentialSampler(dataset_valid), num_workers=num_workers)
+#
+# # Initialize model
+# model = net(modelname)
+# model = model.to(device)
+# print('length of train')
+# print(len(dataset_train))
+#
+# print('length of valid')
+# print(len(dataset_valid))
+#
+#
+# # We use Cosine annealing LR scheduling
+# optimizer = optim.Adam(model.parameters(), lr=init_lr)
+# # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, n_epochs)
+#
+# scheduler = lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
+#
+# # C:\Users\Asus\OneDrive\Desktop\Bundesliga\input\dflfiles\timm.tgz\timm.tgz\timm\pytorch-image-models\timm
+# # best_file = f'./models/{kernel_type}_best_fold{fold}.pth'
+#
+# # best_file = f'./home/ubuntu/bundesliga/input/dflfiles/timm.tgz/timm.tgz/timm/pytorch-image-models/timm/{kernel_type}.pth'
+# # print(best_file)
+#
+# # best = 0
+# for epoch in range(1, n_epochs+1):
+#     start = time.time()
+#     torch.cuda.empty_cache()
+#     print(time.ctime(), 'Epoch:', epoch)
+#
+#     # scheduler.step(epoch-1)
+#
+#     optimizer.step()
+#
+#     scheduler.step()
+#     print('training loss')
+#     train_loss = train_epoch(train_loader, optimizer)
+#     print(train_loss)
+#     val_loss, acc, score, PREDS, FILES, TARGETS  = val_epoch(valid_loader)
+#
+#     print('validation loss')
+#     print(val_loss)
+#
+#
+#     # torch.save(model.state_dict(), os.path.join(f'/home/ubuntu/bundesliga/input/dflfiles/timm.tgz/timm.tgz/timm/pytorch-image-models/timm/{kernel_type}_epoch{epoch}.pth'))
+#     torch.save(model.state_dict(), os.path.join('/home/ubuntu/bundesliga/src/saved_models', f'{kernel_type}_epoch{epoch}.pth'))
 
     # if score > best:
     #     torch.save(model.state_dict(), os.path.join(f'models/{kernel_type}_epoch{epoch}_fold{fold}.pth'))
