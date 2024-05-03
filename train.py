@@ -1,21 +1,9 @@
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt
-import torch
-import torch.nn as nn
-import albumentations as A
 import cv2
 import os
-import timm
 import glob
-
-import torch.nn.functional as F
-import torch.optim as optim
-from torch.optim import lr_scheduler
-from torch.utils.data import DataLoader, Dataset
-from torch.utils.data.sampler import SubsetRandomSampler, RandomSampler, SequentialSampler
-from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, CosineAnnealingLR, ReduceLROnPlateau
 
 IMSIZE = [540, 768]
 IMG_SIZE = (540, 768)
@@ -28,7 +16,7 @@ COSINE = True
 init_lr = 2e-4
 kernel_type = "{}-{}".format(modelname, IMSIZE[0])
 
-IMG_SOURCE = "img/"
+# IMG_SOURCE = "img/"
 BACK_INTERVAL = 20
 BACK_INTERVAL_VAL = 1
 ERR_TOL = 1
@@ -38,43 +26,16 @@ DEBUG = True
 
 
 
-# video_id_split = {
-#     'val':[
-#          '3c993bd2_0',
-#          '3c993bd2_1',
-#          '35bd9041_0',
-#          '35bd9041_1',
-#     ],
-#     'train':[
-#          '1606b0e6_0',
-#          '1606b0e6_1',
-#          '407c5a9e_1',
-#          '4ffd5986_0',
-#          '9a97dae4_1',
-#          'cfbe2e94_0',
-#          'cfbe2e94_1',
-#          'ecf251d4_0',
-#     ]
-# }
 
 
 
 
-# selected_videos = [
-#     "1606b0e6_0.mp4",
-#     "35bd9041_0.mp4",
-#     "3c993bd2_0.mp4",
-#     "407c5a9e_1.mp4",
-#     "9a97dae4_1.mp4"
-# ]
-
-# a97dae4_1
 
 video_id_split = {
 
-    'val': ['407c5a9e_1'],
+    'val': ['35bd9041_0'],
 
-    'train': ["1606b0e6_0", "35bd9041_0", "3c993bd2_0"]
+    'train': ["1606b0e6_0"]
 }
 
 
@@ -84,10 +45,13 @@ video_id_split = {
 
 
 
-df = pd.read_csv('/home/ubuntu/bundesliga/src/Data/updated_frames.csv')
+df = pd.read_csv('/home/ubuntu/bundesliga/src/Data/updated_frames_new.csv')
 
-print(df.head(10))
+# print(df[df["video_id"] == video_id])
+
+print(df.video_id.unique())
 def get_df(video_id, VAL=False):
+    IMG_SOURCE = "img_train" if not VAL else "img_val"
     df_video = df[df.video_id == video_id]
 
     print(video_id, df_video.shape)
@@ -118,8 +82,8 @@ def get_df(video_id, VAL=False):
             data.append({"start": end, "end": a[0], "cls": a[1]})
     # make events
     out = []
-    # print('data')
-    # print(data)
+    print('data')
+    print(data)
     for d in data:
         # print('starting')
         start = int(d["start"])
@@ -136,6 +100,8 @@ def get_df(video_id, VAL=False):
             start += 1
 
     df2 = pd.DataFrame(out)
+
+    print(df2.head())
 
     # print(df2)
     if not VAL:
