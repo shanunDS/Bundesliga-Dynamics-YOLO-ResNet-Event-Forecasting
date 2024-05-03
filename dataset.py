@@ -4,24 +4,10 @@ import os
 import numpy as np
 import pandas as pd
 import cv2
+import random
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-from torch.optim import lr_scheduler
-from torch.utils.data import DataLoader, Dataset
-from torch.utils.data.sampler import SubsetRandomSampler, RandomSampler, SequentialSampler
-from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, CosineAnnealingLR, ReduceLROnPlateau
 
-import albumentations as A
-import albumentations
-import matplotlib.pyplot as plt
-from tqdm.notebook import tqdm
-
-import torchvision
 import glob
-import timm
 from sklearn.metrics import confusion_matrix
 import copy
 
@@ -29,23 +15,24 @@ import copy
 
 IMSIZE = [540, 768]
 IMG_SIZE = (540, 768)
-modelname = "tf_efficientnet_b0"
 use_amp = True
 batch_size = 40
 n_epochs = 30
 num_workers = 2
 COSINE = True
-init_lr = 2e-4
-kernel_type = "{}-{}".format(modelname, IMSIZE[0])
+init_lr = 1e-4
 
 IMG_SOURCE = "img"
 BACK_INTERVAL = 20
 BACK_INTERVAL_VAL = 1
 ERR_TOL = 1
 mixup = True
-DEBUG = True
 
 
+
+
+
+event_names = ['challenge', 'throwin', 'play']
 
 
 err_tol = {
@@ -54,35 +41,10 @@ err_tol = {
     'throwin': [0.15, 0.20, 0.25, 0.30, 0.35]
 }
 
-video_id_split = {
-    'val': [
-        '3c993bd2_0',
-        '3c993bd2_1',
-        '35bd9041_0',
-        '35bd9041_1',
-    ],
-    'train': [
-        '1606b0e6_0',
-        '1606b0e6_1',
-        '407c5a9e_1',
-        '4ffd5986_0',
-        '9a97dae4_1',
-        'cfbe2e94_0',
-        'cfbe2e94_1',
-        'ecf251d4_0',
-    ]
-}
-event_names = ['challenge', 'throwin', 'play']
 
 
 
-
-
-
-
-
-
-
+# df = pd.read_csv("/home/ubuntu/DL/src/Data/train.csv")
 
 
 df = pd.read_csv("/home/ubuntu/bundesliga/src/Data/train.csv")
@@ -107,11 +69,14 @@ df = df.sort_values(['video_id', 'time'])
 
 
 
-cap = cv2.VideoCapture("/home/ubuntu/bundesliga/src/Data/train/ecf251d4_0.mp4")
+cap = cv2.VideoCapture("/home/ubuntu/bundesliga/src/Data/train/3c993bd2_0.mp4")
 fps = cap.get(cv2.CAP_PROP_FPS)
 print("fps:", fps)
 df["frame"] = df["time"] * fps
 
 
-df.to_csv('/home/ubuntu/bundesliga/src/Data/updated_frames.csv', index=False)
+print(df.head(10))
+
+
+df.to_csv('/home/ubuntu/bundesliga/src/Data/updated_frames_new.csv', index=False)
 
