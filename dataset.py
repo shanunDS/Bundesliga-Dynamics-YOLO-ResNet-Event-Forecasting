@@ -5,28 +5,15 @@ import numpy as np
 import pandas as pd
 import cv2
 import random
-
-
 import glob
 from sklearn.metrics import confusion_matrix
 import copy
 
 
 
-IMSIZE = [540, 768]
-IMG_SIZE = (540, 768)
-use_amp = True
-batch_size = 40
-n_epochs = 30
-num_workers = 2
-COSINE = True
-init_lr = 1e-4
 
-IMG_SOURCE = "img"
-BACK_INTERVAL = 20
-BACK_INTERVAL_VAL = 1
-ERR_TOL = 1
-mixup = True
+
+
 
 
 
