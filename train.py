@@ -7,7 +7,6 @@ import glob
 
 IMSIZE = [540, 768]
 IMG_SIZE = (540, 768)
-modelname = "tf_efficientnet_b0"
 use_amp = True
 batch_size = 40
 n_epochs = 30
