@@ -1,7 +1,7 @@
 
 ---
 
-# Object Detection and Prediction Using YOLO and ResNet
+# Object Detection and Event Prediction Using YOLO and ResNet
 
 ## Project Overview
 The goal of this project is to detect football passes, including throw-ins and crosses, as well as challenges in original Bundesliga matches. We have trained YOLOv5, YOLOv8, and ResNet models to detect various objects present in videos and to classify entities into different classes. Automatic event detection could provide event data faster and with greater depth. Having access to a broader range of competitions and match conditions would enable data scouts to ensure no talented player is overlooked.
